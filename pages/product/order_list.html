@@ -1,0 +1,505 @@
+<div class="order-list-container" x-data="orderListComponent">
+    <!-- Header -->
+    <div class="header-section">
+        <h2 class="header-title">
+            <i class="list icon"></i> Order History
+        </h2>
+        <div class="header-actions">
+            <div class="ui icon input">
+                <input type="text" placeholder="Search orders..." x-model.debounce.500="searchQuery">
+                <i class="search icon"></i>
+            </div>
+            <button class="ui primary button" @click="toggleView">
+                <i class=":icon-class='viewMode === \"table\" ? \"th\" : \"list\"' icon"></i>
+                <span x-text="viewMode === 'table' ? 'Card View' : 'Table View'"></span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Message -->
+    <div class="ui message" x-show="message" :class="messageType" x-transition>
+        <i class="close icon" @click="message = ''"></i>
+        <span x-text="message"></span>
+    </div>
+
+    <!-- Loading -->
+    <div class="ui active dimmer" x-show="loading" x-transition>
+        <div class="ui text loader">Loading orders...</div>
+    </div>
+
+    <!-- Table View -->
+    <div class="table-container" x-show="viewMode === 'table'" x-transition>
+        <table class="ui celled selectable table">
+            <thead>
+                <tr>
+                    <th>Image</th>
+                    <th @click="sortBy('name')">Name <i class="sort icon" x-show="sortField === 'name'"></i></th>
+                    <th @click="sortBy('address')">Address <i class="sort icon" x-show="sortField === 'address'"></i></th>
+                    <th>Products</th>
+                    <th @click="sortBy('quantity')">Quantity <i class="sort icon" x-show="sortField === 'quantity'"></i></th>
+                    <th>Payment</th>
+                    <th @click="sortBy('created_at')">Date <i class="sort icon" x-show="sortField === 'created_at'"></i></th>
+                    <th @click="sortBy('total_amount')">Total <i class="sort icon" x-show="sortField === 'total_amount'"></i></th>
+                </tr>
+            </thead>
+            <tbody>
+                <template x-for="(order, index) in filteredOrders" :key="index">
+                    <tr>
+                        <td class="image-column">
+                            <img 
+                                :src="getImageUrl(order.receipt_image)" 
+                                alt="Receipt Image" 
+                                class="order-image"
+                                @error="this.src='https://via.placeholder.com/50'"
+                            >
+                        </td>
+                        <td x-text="order.name || 'N/A'"></td>
+                        <td x-text="order.address || 'N/A'"></td>
+                        <td class="products-column">
+                            <template x-for="product in order.products">
+                                <div class="product-item" x-text="product.name"></div>
+                            </template>
+                        </td>
+                        <td x-text="order.products.reduce((sum, product) => sum + (product.quantity || 0), 0)"></td>
+                        <td x-text="order.payment_method || 'N/A'"></td>
+                        <td x-text="formatDate(order.created_at)"></td>
+                        <td x-text="order.total_amount ? `₱${parseFloat(order.total_amount).toFixed(2)}` : 'N/A'"></td>
+                    </tr>
+                </template>
+                <tr x-show="!loading && filteredOrders.length === 0">
+                    <td colspan="8" class="center aligned">No orders found</td>
+                </tr>
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="7" class="right aligned"><strong>Total of All Orders:</strong></td>
+                    <td><strong x-text="calculateTotalOrders()"></strong></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <!-- Card View -->
+    <div class="cards-container" x-show="viewMode === 'cards'" x-transition>
+        <template x-for="(order, index) in filteredOrders" :key="index">
+            <div class="ui card order-card">
+                <div class="image">
+                    <img 
+                        :src="getImageUrl(order.receipt_image)" 
+                        alt="Receipt Image"
+                        class="order-image-card"
+                        @error="this.src='https://via.placeholder.com/150'"
+                    >
+                </div>
+                <div class="content">
+                    <div class="header" x-text="order.name || 'N/A'"></div>
+                    <div class="meta" x-text="formatDate(order.created_at)"></div>
+                    <div class="description">
+                        <p><strong>Address:</strong> <span x-text="order.address || 'N/A'"></span></p>
+                        <p><strong>Payment:</strong> <span x-text="order.payment_method || 'N/A'"></span></p>
+                        <p><strong>Quantity:</strong> <span x-text="order.products.reduce((sum, product) => sum + (product.quantity || 0), 0)"></span></p>
+                        <p><strong>Products:</strong></p>
+                        <div class="products-list">
+                            <template x-for="product in order.products">
+                                <div x-text="product.name"></div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+                <div class="extra content">
+                    <span class="right floated">
+                        <strong x-text="order.total_amount ? `₱${parseFloat(order.total_amount).toFixed(2)}` : 'N/A'"></strong>
+                    </span>
+                </div>
+            </div>
+        </template>
+        <div class="no-orders" x-show="!loading && filteredOrders.length === 0">
+            No orders found
+        </div>
+    </div>
+
+    <!-- Footer Actions -->
+    <div class="footer-actions">
+        <button class="ui secondary button" @click="navigateTo('products/product_list')">
+            <i class="home icon"></i> Back to Products
+        </button>
+    </div>
+</div>
+
+<style>
+.order-list-container {
+    padding: 1.5rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    background: #f8fafc;
+    border-radius: 8px;
+}
+
+.header-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.header-title {
+    display: flex;
+    align-items: center;
+    font-size: 1.8rem;
+    color: #1a202c;
+    margin: 0;
+}
+
+.header-title i {
+    margin-right: 0.5rem;
+    color: #4b5563;
+}
+
+.header-actions {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.table-container {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    overflow-x: auto;
+}
+
+.ui.table {
+    margin: 0;
+    border: none;
+}
+
+.ui.table th {
+    background: #f1f5f9;
+    color: #1a202c;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.ui.table th:hover {
+    background: #e2e8f0;
+}
+
+.ui.table td {
+    color: #4b5563;
+    vertical-align: middle;
+}
+
+.ui.table tr:hover {
+    background: #f8fafc;
+}
+
+.image-column {
+    width: 70px;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.order-image {
+    width: 50px;
+    height: 50px;
+    object-fit: cover;
+    border-radius: 4px;
+    border: 1px solid #e2e8f0;
+}
+
+.order-image-card {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+    border-radius: 8px 8px 0 0;
+}
+
+.products-column .product-item {
+    padding: 0.25rem 0;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.products-column .product-item:last-child {
+    border-bottom: none;
+}
+
+.cards-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+    padding: 1rem 0;
+}
+
+.order-card {
+    transition: transform 0.2s;
+}
+
+.order-card:hover {
+    transform: translateY(-4px);
+}
+
+.order-card .content {
+    padding: 1rem;
+}
+
+.order-card .products-list div {
+    padding: 0.25rem 0;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.order-card .products-list div:last-child {
+    border-bottom: none;
+}
+
+.no-orders {
+    text-align: center;
+    padding: 2rem;
+    color: #6b7280;
+    font-size: 1.1rem;
+}
+
+.footer-actions {
+    margin-top: 1.5rem;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.ui.button {
+    transition: all 0.2s;
+}
+
+.ui.button:hover {
+    transform: translateY(-2px);
+}
+
+@media (max-width: 768px) {
+    .order-list-container {
+        padding: 1rem;
+    }
+
+    .header-section {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: flex-start;
+    }
+
+    .cards-container {
+        grid-template-columns: 1fr;
+    }
+
+    .ui.table th,
+    .ui.table td {
+        font-size: 0.9rem;
+        padding: 0.5rem;
+    }
+
+    .image-column {
+        width: 60px;
+    }
+
+    .order-image {
+        width: 40px;
+        height: 40px;
+    }
+
+    .order-image-card {
+        height: 120px;
+    }
+}
+
+@media (max-width: 480px) {
+    .image-column {
+        width: 50px;
+    }
+
+    .order-image {
+        width: 30px;
+        height: 30px;
+    }
+
+    .order-image-card {
+        height: 100px;
+    }
+
+    .ui.table th,
+    .ui.table td {
+        font-size: 0.8rem;
+        padding: 0.4rem;
+    }
+}
+</style>
+
+<script>
+if (!Alpine.store('api')) {
+    Alpine.store('api', {
+        fetch(url, options) {
+            return fetch(url, options);
+        }
+    });
+}
+
+Alpine.data("orderListComponent", () => ({
+    orders: Alpine.reactive([]),
+    message: "",
+    messageType: "",
+    loading: true,
+    viewMode: 'table',
+    searchQuery: '',
+    sortField: 'created_at',
+    sortDirection: 'desc',
+
+    init() {
+        console.log("Initializing orderListComponent");
+        this.fetchOrders();
+        window.addEventListener('payment-submitted', this.handlePaymentSubmitted.bind(this));
+    },
+
+    destroy() {
+        console.log("Destroying orderListComponent");
+        window.removeEventListener('payment-submitted', this.handlePaymentSubmitted);
+    },
+
+    handlePaymentSubmitted(event) {
+        console.log("Received payment-submitted event:", event.detail);
+        this.fetchOrders();
+        this.message = "New order added successfully!";
+        this.messageType = "positive";
+        setTimeout(() => { this.message = ""; }, 3000);
+    },
+
+    async fetchOrders(retries = 3) {
+        this.loading = true;
+        this.message = "Loading orders...";
+        this.messageType = "info";
+        console.log("Fetching orders from API");
+
+        while (retries > 0) {
+            try {
+                const response = await Alpine.store('api').fetch('http://172.17.100.14:3356/pandiin5/api/payments/', {
+                    method: "GET",
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || `HTTP error! Status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log("Raw orders data:", JSON.stringify(data, null, 2));
+
+                this.orders = Array.isArray(data) ? data : 
+                             Array.isArray(data.results) ? data.results : [];
+                
+                this.orders = this.orders.map(order => ({
+                    name: order.name || 'N/A',
+                    email: order.email || 'N/A',
+                    address: order.address || 'N/A',
+                    payment_method: order.payment_method || 'N/A',
+                    total_amount: order.total_amount ? parseFloat(order.total_amount) : 0,
+                    products: Array.isArray(order.products) ? order.products : [],
+                    created_at: order.created_at || null,
+                    receipt_image: order.receipt_image || null
+                }));
+
+                console.log("Processed orders:", JSON.stringify(this.orders, null, 2));
+
+                this.message = this.orders.length > 0 ? "" : "No orders found";
+                this.messageType = "";
+                this.loading = false;
+                this.sortOrders();
+                return;
+            } catch (error) {
+                console.error("Error fetching orders:", error);
+                retries--;
+                if (retries === 0) {
+                    this.message = `Failed to load orders: ${error.message}`;
+                    this.messageType = "negative";
+                    this.loading = false;
+                    setTimeout(() => { this.message = ""; }, 5000);
+                }
+            }
+        }
+    },
+
+    formatDate(dateString) {
+        if (!dateString) return "N/A";
+        try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return "Invalid Date";
+            return date.toLocaleString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        } catch (e) {
+            return "Invalid Date";
+        }
+    },
+
+    getImageUrl(imagePath) {
+        if (!imagePath) {
+            console.log("No receipt_image provided, using placeholder");
+            return 'https://via.placeholder.com/150';
+        }
+        const isAbsoluteUrl = imagePath.startsWith('http://') || imagePath.startsWith('https://');
+        const url = isAbsoluteUrl ? imagePath : `http://172.17.100.14:3356/pandiin5${imagePath.startsWith('/') ? '' : '/'}${imagePath}`;
+        console.log(`Resolved image URL: ${url}`);
+        return url;
+    },
+
+    calculateTotalOrders() {
+        const total = this.filteredOrders.reduce((sum, order) => sum + (order.total_amount || 0), 0);
+        return total ? `₱${total.toFixed(2)}` : 'N/A';
+    },
+
+    toggleView() {
+        this.viewMode = this.viewMode === 'table' ? 'cards' : 'table';
+    },
+
+    sortBy(field) {
+        if (this.sortField === field) {
+            this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            this.sortField = field;
+            this.sortDirection = 'asc';
+        }
+        this.sortOrders();
+    },
+
+    sortOrders() {
+        this.orders.sort((a, b) => {
+            let valueA = a[this.sortField] || '';
+            let valueB = b[this.sortField] || '';
+            
+            if (this.sortField === 'quantity') {
+                valueA = a.products.reduce((sum, p) => sum + (p.quantity || 0), 0);
+                valueB = b.products.reduce((sum, p) => sum + (p.quantity || 0), 0);
+            }
+
+            if (typeof valueA === 'string') {
+                valueA = valueA.toLowerCase();
+                valueB = valueB.toLowerCase();
+            }
+
+            if (valueA < valueB) return this.sortDirection === 'asc' ? -1 : 1;
+            if (valueA > valueB) return this.sortDirection === 'asc' ? 1 : -1;
+            return 0;
+        });
+    },
+
+    get filteredOrders() {
+        if (!this.searchQuery) return this.orders;
+        const query = this.searchQuery.toLowerCase();
+        return this.orders.filter(order => 
+            order.name?.toLowerCase().includes(query) ||
+            order.address?.toLowerCase().includes(query) ||
+            order.payment_method?.toLowerCase().includes(query) ||
+            order.products.some(p => p.name?.toLowerCase().includes(query))
+        );
+    }
+}));
+</script>
